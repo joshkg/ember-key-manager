@@ -146,7 +146,7 @@ export default Service.extend({
             matchingMacro.ignore.forEach((selectorId) => {
               let ignoreElement = document.getElementById(selectorId);
               let isRemoved = !event.target || !this.documentOrBodyContains(event.target);
-              let isInside = ignoreElement === event.target || ignoreElement.contains(event.target);
+              let isInside = ignoreElement && (ignoreElement === event.target ||  ignoreElement.contains(event.target));
               if (isRemoved || isInside) {
                 ignore = true;
               }
