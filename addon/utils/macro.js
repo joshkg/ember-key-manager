@@ -1,19 +1,20 @@
 import EmberObject, {
-  setProperties,
+  get,
+  setProperties
 } from '@ember/object';
 import { assign } from '@ember/polyfills';
 import { copy } from '@ember/object/internals';
 
 const defaultAttrs = {
   callback: null,
-  element: document.body,
+  element: typeof document !== 'undefined' ? document.body : null,
   executionKey: '',
   isDisabledOnInput: false,
   modifierKeys: [],
   priority: 0,
   keyEvent: null,
   groupName: null,
-  isDisabled: false,
+  isDisabled: false
 }
 
 export default EmberObject.extend({

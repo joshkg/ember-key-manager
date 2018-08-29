@@ -17,6 +17,7 @@ import { isPresent, } from '@ember/utils';
 import {
   MODIFIERS_ON_KEYUP as MODIFIERS_ON_KEYUP_WARNING,
 } from 'ember-key-manager/utils/warning-messages';
+import { inject as injectService } from '@ember/service';
 
 const inputElements = [
   'INPUT',
@@ -32,10 +33,12 @@ const isInputElement = (element) => {
 };
 
 export default Service.extend({
+  fastboot: injectService(),
   isDisabledOnInput: false, // Config option
 
   keydownMacros: filterBy('macros', 'keyEvent', 'keydown'),
   keyupMacros: filterBy('macros', 'keyEvent', 'keyup'),
+  clickMacros: filterBy('macros', 'keyEvent', 'click'),
 
   init() {
     this.macros = [];
@@ -43,6 +46,10 @@ export default Service.extend({
   },
 
   addMacro(options) {
+    // guard against trying to attach event listeners in fastboot
+    if (get(this, 'fastboot.isFastBoot')) {
+      return;
+    }
     const macroAttrs = this._mergeConfigDefaults(options);
     const macro = Macro.create();
     macro.setup(macroAttrs);
@@ -108,8 +115,9 @@ export default Service.extend({
 
     const isKeydown = event.type === 'keydown';
     const isKeyup = event.type === 'keyup';
+    const isClick = event.type === 'click';
 
-    if (isKeydown || isKeyup) {
+    if (isKeydown || isKeyup || isClick) {
       const allEventModifierKeys = {
         altKey: event.altKey,
         ctrlKey: event.ctrlKey,
@@ -120,25 +128,37 @@ export default Service.extend({
         .filter((key) => {
           return allEventModifierKeys[key] !== false;
         });
+      const eventKey = isClick ? 'click' : event.key;
       const matchingMacros = this._findMatchingMacros(
         event.target,
-        event.key,
+        eventKey,
         eventModifierKeys,
         event.type
       );
 
       if (matchingMacros) {
         const isTargetInput = isInputElement(event.target);
-        event.stopPropagation();
+        !isClick && event.stopPropagation();
 
         matchingMacros.forEach((matchingMacro) => {
+          let ignore = false;
+          if (matchingMacro.ignore) {
+            matchingMacro.ignore.forEach((selectorId) => {
+              let ignoreElement = document.getElementById(selectorId);
+              let isRemoved = !event.target || !this.documentOrBodyContains(event.target);
+              let isInside = ignoreElement === event.target || ignoreElement.contains(event.target);
+              if (isRemoved || isInside) {
+                ignore = true;
+              }
+            });
+          }
           const isDisabled = get(matchingMacro, 'isDisabled') ||
             (get(matchingMacro, 'isDisabledOnInput') && isTargetInput);
 
-          if (!isDisabled) {
+          if (!isDisabled && !ignore) {
             get(matchingMacro, 'callback')(event);
           }
-        })
+        });
       }
     }
   },
@@ -197,4 +217,11 @@ export default Service.extend({
     get(this, 'macros').filterBy('groupName', groupName)
       .setEach('isDisabled', isDisabled);
   },
+  documentOrBodyContains(element) {
+    if (typeof document.contains === 'function') {
+      return document.contains(element);
+    } else {
+      document.body.contains(element);
+    }
+  }  
 });
